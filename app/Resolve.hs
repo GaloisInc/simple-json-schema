@@ -12,7 +12,8 @@ import System.Directory(canonicalizePath)
 import System.FilePath(takeExtension, addExtension, splitPath, joinPath)
 import AlexTools
 import PP
-import Parser
+import Parser(spec)
+import ParserUtils
 import AST
 
 ext :: String
@@ -61,7 +62,7 @@ parseSpecAndDeps :: FilePath -> IO ([ResolveError], Map Name (Decl Name Name))
 parseSpecAndDeps file =
   do
     c <- canonicalizePath file
-    m <- parseSpecFromFile file
+    m <- parseFromFile spec file
     let s = State { loadedSpec = mempty, nextId = 1 }
         done = Set.singleton c
     (is, s1) <- parseImports done [] s (moduleImports m)
@@ -137,9 +138,12 @@ resolveType mp r t =
         _                -> ([UndefinedName r n], TAny)
     TLocated r1 t1 -> TLocated r1 <$> resolveType mp r1 t1
   where
-  resolveField (f :> ft) =
-    do t1 <- resolveType mp r ft
-       pure (f :> t1)
+  resolveField fi =
+    case fi of
+      f :> ft ->
+        do t1 <- resolveType mp r ft
+           pure (f :> t1)
+      OtherFields -> pure OtherFields
 
 envFromImport :: Map Int ParsedSpec -> Import -> Map QName [Name]
 envFromImport ms imp =
@@ -185,7 +189,7 @@ parseImport done s imp =
         Just l -> pure (psId l, s)
         Nothing ->
           do
-              m <- parseSpecFromFile f
+              m <- parseFromFile spec f
               let done1 = Set.insert c done
               let i  = nextId s
                   s1 = s { nextId = i + 1 }

@@ -19,6 +19,7 @@ data Token =
   | TokCloseBracket
   | TokColon
   | TokDot
+  | TokDots
   | TokComma
   | TokBar
   | TokQuestion
@@ -33,7 +34,7 @@ data Token =
   | TokKwString
   | TokKwNumber
   | TokKwBoolean
-  | TokUnsigned
+  | TokNumber
   | TokIdent
   | TokString
   | TokError
@@ -66,10 +67,13 @@ addStringLit c = inStringLit \s b ->
 addStringLitUni :: Action State [Lexeme Token]
 addStringLitUni = inStringLit \s b ->
   do
-    m <- toEnum . fst . head . readHex . Text.unpack . Text.drop 2 <$>
+    m <- toEnum . fst . hd . readHex . Text.unpack . Text.drop 2 <$>
          matchText
     setLexerState (InStringLit s (b <> B.singleton m))
     pure []
+  where hd xs = case xs of
+                  [] -> error "hd"
+                  x : _ -> x
 
 
 addStringLitMatch :: Action State [Lexeme Token]

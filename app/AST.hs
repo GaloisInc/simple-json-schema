@@ -1,7 +1,8 @@
 module AST where
-
+  
 import Data.Text
 import AlexTools(SourceRange)
+import Data.Scientific(Scientific)
 import PP
 
 data Module = Module {
@@ -63,7 +64,7 @@ data Type nm =
   | TTuple [Type nm]
   | TNamed nm
   | TLocated SourceRange (Type nm)
-  | TAny
+  | TAny -- XXX: Syntax
     deriving Show
 
 typeRange :: Type nm -> Maybe SourceRange
@@ -72,10 +73,12 @@ typeRange ty =
     TLocated r _ -> Just r
     _ -> Nothing
 
-data Value = VNull | VBool Bool | VInt Text | VString Text
+data Value = VNull | VBool Bool | VNumber Scientific | VString Text
   deriving Show
 
-data Field nm = FieldName :> Type nm
+data Field nm =
+    FieldName :> Type nm
+  | OtherFields
   deriving Show
 
 data FieldName = FieldName {

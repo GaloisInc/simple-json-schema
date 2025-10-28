@@ -1,20 +1,16 @@
 {
-module Parser(
-  parseSpecAt,
-  parseSpec,
-  parseSpecFromFile,
-  ParseError(..),
-  SourceRange(..),
-  SourcePos(..)
- ) where
+module Parser(spec) where
 
 import Data.Maybe(fromMaybe)
 import Data.Text(Text)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
+import Text.ParserCombinators.ReadP(readP_to_S)
 import Control.Exception(Exception(..), throwIO)
 import Control.Monad(liftM,ap)
+import Data.Scientific qualified as Sc
 import AlexTools
+import ParserUtils
 import Lexer
 import AST
 }
@@ -34,6 +30,7 @@ import AST
   '?'       { (matchLexeme -> (TokQuestion,     ($$,_))) }
   '*'       { (matchLexeme -> (TokStar,         ($$,_))) }
   '.'       { (matchLexeme -> (TokDot,          ($$,_))) }
+  '...'     { (matchLexeme -> (TokDots,         ($$,_))) }
   'import'  { (matchLexeme -> (TokKwImport,     ($$,_))) }
   'from'    { (matchLexeme -> (TokKwFrom,       ($$,_))) }
   'as'      { (matchLexeme -> (TokKwAs,         ($$,_))) }
@@ -44,7 +41,7 @@ import AST
   'number'  { (matchLexeme -> (TokKwNumber,     ($$,_))) }
   'boolean' { (matchLexeme -> (TokKwBoolean,    ($$,_))) }
   IDENT     { (matchLexeme -> (TokIdent,        $$)) }
-  UNSIGNED  { (matchLexeme -> (TokUnsigned,     $$)) }
+  NUMBER    { (matchLexeme -> (TokNumber  ,     $$)) }
   STRING    { (matchLexeme -> (TokString,       $$)) }
 
 %left '|'
@@ -111,7 +108,7 @@ atype                       :: { Type QName }
   | atype '?'                  { TLocated (fromMaybe $2 (typeRange $1) <-> $2) ($1 :| TExact VNull) }
 
 value                        :: { (SourceRange, Value) }
-  : UNSIGNED                    { fmap VInt $1 }
+  : NUMBER                      {% fmap (fmap VNumber) (parseNumber $1) }
   | STRING                      { fmap VString $1 }
   | 'true'                      { ($1, VBool True) }
   | 'false'                     { ($1, VBool False) }
@@ -135,8 +132,9 @@ field_name_opt               :: { FieldName }
 
 field                        :: { Field QName }
   : field_name_opt ':' type     { $1 :> $3 }
+  | '...'                        { OtherFields }
 
-fields1                      :: { [Field QName ] }
+fields1                      :: { [Field QName] }
   : field                       { [$1] }
   | fields1 ',' field           { $3 : $1 }
 
@@ -146,59 +144,3 @@ fields                       :: { [Field QName] }
 
 
 
-{
-matchLexeme :: Lexeme Token -> (Token, (SourceRange,Text))
-matchLexeme l = (lexemeToken l, (lexemeRange l, lexemeText l))
-
-newtype ParseError = ParseError SourcePos
-
-instance Show ParseError where
-  show (ParseError p) = "Parse error at " ++ show p
-
-instance Exception ParseError
-
--- | Throws `ParseError` on parser error
-parseSpecFromFile :: FilePath -> IO Module
-parseSpecFromFile file =
-  do txt <- Text.readFile file
-     case parseSpec (Text.pack file) txt of
-       Left err -> throwIO err
-       Right a -> pure a
-
-parseSpec :: Text -> Text -> Either ParseError Module
-parseSpec file = parseSpecAt (startPos file)
-
-parseSpecAt :: SourcePos -> Text -> Either ParseError Module
-parseSpecAt pos txt =
-  case unP spec (pos,lexerAt pos txt) of
-    (Just a, _) -> Right a
-    (Nothing, (p,_)) -> Left (ParseError p)
-
-type RW = (SourcePos, [Lexeme Token])
-newtype Parser a = Parser { unP :: RW -> (Maybe a, RW) }
-
-instance Functor Parser where
-  fmap = liftM
-
-instance Applicative Parser where
-  pure a = Parser \inp -> (Just a, inp)
-  (<*>) = ap
-
-instance Monad Parser where
-  m >>= f = Parser \inp ->
-    case unP m inp of
-      (Nothing, inp1) -> (Nothing, inp1)
-      (Just a, inp1) -> unP (f a) inp1
-
-nextToken :: (Lexeme Token -> Parser a) -> Parser a
-nextToken k = Parser \(lastP, inp) ->
-  let (t,ts) =
-        case inp of
-          [] -> (Lexeme { lexemeText = "", lexemeRange = range lastP, lexemeToken = TokEOF }, [])
-          t : ts -> (t,ts)
-      Parser m = k t
-  in m (sourceTo (lexemeRange t), ts)
-
-happyError :: Parser a
-happyError = Parser \inp -> (Nothing, inp)
-}

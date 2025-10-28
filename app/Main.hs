@@ -4,7 +4,7 @@ import Data.Map qualified as Map
 import Control.Exception
 import System.Environment
 import AlexTools
-import Parser
+import ParserUtils(ParseError(..))
 import Resolve
 import PP
 

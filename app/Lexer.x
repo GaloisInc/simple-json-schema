@@ -18,6 +18,7 @@ $digit          = 0-9
 $hex_digit      = [$digit a-f A-F]
 $char           = [^\"\\]
 @unsigned       = $digit+
+@number         = "-"? (0 | [1-9]$digit*) ("." $digit+)? ([Ee] [\+\-]? $digit+)?
 @ident          = $idchar+ [$idchar $digit]*
 @esc            = [\"\\\/bfnrt] | u$hex_digit{4}
 
@@ -34,6 +35,7 @@ $char           = [^\"\\]
 ","             { lexeme TokComma }
 ":"             { lexeme TokColon }
 "."             { lexeme TokDot }
+"..."           { lexeme TokDots }
 "|"             { lexeme TokBar }
 "?"             { lexeme TokQuestion }
 "*"             { lexeme TokStar }
@@ -46,7 +48,7 @@ $char           = [^\"\\]
 "string"        { lexeme TokKwString }
 "number"        { lexeme TokKwNumber }
 "boolean"       { lexeme TokKwBoolean }
-@unsigned       { lexeme TokUnsigned }
+@number         { lexeme TokNumber }
 @ident          { lexeme TokIdent }
 \n              ;
 $white          ;

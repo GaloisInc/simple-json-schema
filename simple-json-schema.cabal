@@ -27,11 +27,12 @@ executable simple-json-schema
     import:           settings
     main-is:          Main.hs
     other-modules:
-      Lexer, LexerUtils, Parser, AST, Resolve, Validate, PP
+      Lexer, LexerUtils, Parser, ParserUtils, AST, Resolve, Validate, PP,
+      JSON.Parser, JSON.AST
     -- other-extensions:
     build-depends:
       base, text, array, containers, directory, filepath,
-      alex-tools, aeson, pretty, simple-get-opt
+      alex-tools, pretty, scientific, simple-get-opt
     hs-source-dirs:   app
     default-language: Haskell2010
     build-tool-depends: alex:alex, happy:happy
