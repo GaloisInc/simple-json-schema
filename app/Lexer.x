@@ -39,7 +39,9 @@ $char           = [^\"\\]
 "|"             { lexeme TokBar }
 "?"             { lexeme TokQuestion }
 "*"             { lexeme TokStar }
+"="             { lexeme TokEqual }
 "import"        { lexeme TokKwImport }
+"type"          { lexeme TokKwType }
 "from"          { lexeme TokKwFrom }
 "as"            { lexeme TokKwAs }
 "true"          { lexeme TokKwTrue }
@@ -48,6 +50,8 @@ $char           = [^\"\\]
 "string"        { lexeme TokKwString }
 "number"        { lexeme TokKwNumber }
 "boolean"       { lexeme TokKwBoolean }
+"any"           { lexeme TokKwAny }
+"//" .*         { lexeme TokLineComment }
 @number         { lexeme TokNumber }
 @ident          { lexeme TokIdent }
 \n              ;

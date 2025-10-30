@@ -22,6 +22,7 @@ common settings
       ImportQualifiedPost
       ViewPatterns
       LambdaCase
+      ScopedTypeVariables
 
 executable simple-json-schema
     import:           settings
@@ -32,7 +33,8 @@ executable simple-json-schema
     -- other-extensions:
     build-depends:
       base, text, array, containers, directory, filepath,
-      alex-tools, pretty, scientific, simple-get-opt
+      alex-tools, pretty, scientific, simple-get-opt,
+      GraphSCC
     hs-source-dirs:   app
     default-language: Haskell2010
     build-tool-depends: alex:alex, happy:happy

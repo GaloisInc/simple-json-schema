@@ -31,7 +31,9 @@ import AST
   '*'       { (matchLexeme -> (TokStar,         ($$,_))) }
   '.'       { (matchLexeme -> (TokDot,          ($$,_))) }
   '...'     { (matchLexeme -> (TokDots,         ($$,_))) }
+  '='       { (matchLexeme -> (TokEqual,        ($$,_))) }
   'import'  { (matchLexeme -> (TokKwImport,     ($$,_))) }
+  'type'    { (matchLexeme -> (TokKwType,       ($$,_))) }
   'from'    { (matchLexeme -> (TokKwFrom,       ($$,_))) }
   'as'      { (matchLexeme -> (TokKwAs,         ($$,_))) }
   'true'    { (matchLexeme -> (TokKwTrue,       ($$,_))) }
@@ -40,6 +42,8 @@ import AST
   'string'  { (matchLexeme -> (TokKwString,     ($$,_))) }
   'number'  { (matchLexeme -> (TokKwNumber,     ($$,_))) }
   'boolean' { (matchLexeme -> (TokKwBoolean,    ($$,_))) }
+  'any'     { (matchLexeme -> (TokKwAny,        ($$,_))) }
+  COMMENT   { (matchLexeme -> (TokLineComment,  $$)) }
   IDENT     { (matchLexeme -> (TokIdent,        $$)) }
   NUMBER    { (matchLexeme -> (TokNumber  ,     $$)) }
   STRING    { (matchLexeme -> (TokString,       $$)) }
@@ -60,16 +64,12 @@ imports                    :: { [Import] }
   | {- empty -}               { [] }
 
 import                      :: { Import }
-  : 'import' importSpec importAs 'from' STRING 
-                               { Import $2 $3 (snd $5) (-1) ($1 <-> fst $5) }
+  : 'import' importSpec 'from' STRING 
+                               { Import $2 (snd $4) (-1) ($1 <-> fst $4) }
 
 importSpec                  :: { ImportSpec }
-  : '*'                        { ImportAll }
+  : '*' 'as' IDENT             { ImportAll (snd $3) }
   | '{' names '}'              { ImportList $2 }
-
-importAs                    :: { Maybe Text }
-  : 'as' IDENT                 { Just (snd $2) }
-  | {- empty -}                { Nothing }  
 
 names1                      :: { [Text] }
   : IDENT                      { [snd $1] }
@@ -84,12 +84,24 @@ qname                       :: { (SourceRange, QName) }
   | IDENT '.' IDENT            { (fst $1 <-> fst $3, Qual (snd $1) (snd $3)) }
 
 
+comments                    :: { [Text] }
+  : comments1                  { reverse $1 }
+  | {- empty -}                { [] }
+
+comments1                   :: { [Text] }
+  : comment                    { [$1] }
+  | comments1 comment          { $2 : $1 }
+
+comment                     :: { Text }
+  : COMMENT                    { Text.drop 2 (snd $1) }
+
 decls                       :: { [Decl Text QName] }
   : decls decl                 { $2 : $1 }
   | {- empty -}                { [] }
 
 decl                        :: { Decl Text QName }
-  : IDENT ':' type             { Decl { declName = snd $1, declDef = $3, declRange = fst $1 }    }
+  : comments 'type' IDENT '=' type
+                              { Decl { declName = snd $3, declDef = $5, declRange = fst $3, declDocs = $1 } }
 
 type                        :: { Type QName }
   : atype                      { $1 }
@@ -98,9 +110,10 @@ type                        :: { Type QName }
 atype                       :: { Type QName }
   : qname                      { uncurry TLocated (fmap TNamed $1) }
   | value                      { uncurry TLocated (fmap TExact $1) }
-  | 'number'                   { TLocated $1 TNumber }
-  | 'boolean'                  { TLocated $1 TBoolean }
-  | 'string'                   { TLocated $1 TString }
+  | 'number'                   { TLocated $1 (TBuiltIn TNumber) }
+  | 'boolean'                  { TLocated $1 (TBuiltIn TBoolean) }
+  | 'string'                   { TLocated $1 (TBuiltIn TString) }
+  | 'any'                      { TLocated $1 (TBuiltIn TAny) }
   | '{' fields '}'             { TLocated ($1 <-> $3) (TObject $2) }
   | '[' types ']'              { TLocated ($1 <-> $3) (TTuple $2) }
   | '(' type ')'               { $2 }
@@ -122,9 +135,23 @@ types                        :: { [Type QName] }
   : types1                      { reverse $1 }
   | {- empty -}                 { [] }
 
+field_text                   :: { (SourceRange, Text) }
+  : IDENT                       { $1 }
+  | STRING                      { $1 }
+  | 'import'                    { ($1, "import") }
+  | 'type'                      { ($1, "type") }
+  | 'from'                      { ($1, "from") }
+  | 'as'                        { ($1, "as") }
+  | 'true'                      { ($1, "true") }
+  | 'false'                     { ($1, "false") }
+  | 'null'                      { ($1, "null") }
+  | 'string'                    { ($1, "string") }
+  | 'number'                    { ($1, "number") }
+  | 'boolean'                   { ($1, "boolean") }
+  | 'any'                       { ($1, "any") }
+
 field_name                   :: { FieldName }
-  : IDENT                       { FieldName (snd $1) True (fst $1) }
-  | STRING                      { FieldName (snd $1) True (fst $1) }
+  : comments field_text         { FieldName (snd $2) True (fst $2) $1 }
 
 field_name_opt               :: { FieldName }
   : field_name                  { $1 }

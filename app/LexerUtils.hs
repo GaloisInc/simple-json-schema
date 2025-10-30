@@ -24,7 +24,10 @@ data Token =
   | TokBar
   | TokQuestion
   | TokStar
+  | TokEqual
   | TokKwImport
+  | TokKwType
+  | TokKwAny
   | TokKwFrom
   | TokKwAs
   | TokKwStar
@@ -37,6 +40,7 @@ data Token =
   | TokNumber
   | TokIdent
   | TokString
+  | TokLineComment
   | TokError
   | TokEOF
    deriving (Show)

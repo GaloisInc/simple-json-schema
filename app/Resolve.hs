@@ -1,15 +1,19 @@
-module Resolve (parseSpecAndDeps, ResolveError(..)) where
+module Resolve (parseSpecAndDeps, ResolveError(..), BadImport(..)) where
 
 import Data.Text(Text)
 import Data.Text qualified as Text
 import Data.List(transpose)
+import Data.Maybe(listToMaybe)
 import Data.Map(Map)
 import Data.Map qualified as Map
 import Data.Set(Set)
 import Data.Set qualified as Set
-import Control.Monad(when)
+import Data.Graph.SCC(stronglyConnComp)
+import Data.Graph(SCC(..))
+import Control.Monad(when,mapAndUnzipM)
+import Control.Exception(Exception, throwIO, catch, IOException)
 import System.Directory(canonicalizePath)
-import System.FilePath(takeExtension, addExtension, splitPath, joinPath)
+import System.FilePath(takeExtension, addExtension, splitPath, joinPath, isRelative, takeDirectory, (</>))
 import AlexTools
 import PP
 import Parser(spec)
@@ -17,13 +21,13 @@ import ParserUtils
 import AST
 
 ext :: String
-ext = ".schema"
-
+ext = ".ts"
 
 data ResolveError =
     MultipleDefinitions Text [ SourceRange ]
   | UndefinedName SourceRange QName
   | AmbiguousName SourceRange QName [ Name ]
+  | RecursiveDeclarations [(SourceRange,Name)]
 
 instance PP ResolveError where
   pp err =
@@ -41,6 +45,20 @@ instance PP ResolveError where
       AmbiguousName r q xs ->
         msg r (pp q <+> "may refer to definitions in:")
               (map text (dropCommonDirs (map nameFile xs)))
+
+      RecursiveDeclarations ds ->
+        case ds of
+          [] -> "Recusive declarations"
+          [(r,x)] -> msg r (pp x <+> "depends on itself") []
+          (r,_) : _ -> msg r "Mutually recursive definitions:" (map sh ds)
+            where
+            p = sourceFrom r
+            sh (r1,y) =
+              let p1 = sourceFrom r1
+                  loc = if sourceFile p == sourceFile p1
+                          then prettySourcePos p1 else prettySourcePosLong p1
+              in text loc <.> ":" <+> pp y
+            
     where
     msg r x xs =
       vcat (
@@ -55,17 +73,20 @@ instance PP ResolveError where
         [] -> True
         x : ys -> all (== x) ys
 
-
 -- | Parse and resolve declarations from a bunch of files.
 -- Throws `ParseError`
-parseSpecAndDeps :: FilePath -> IO ([ResolveError], Map Name (Decl Name Name))
-parseSpecAndDeps file =
+parseSpecAndDeps ::
+  FilePath {- ^ File containing spec -} ->
+  Maybe Text {- ^ Optional root name -} ->
+  IO ([ResolveError], Maybe Name, Map Name (Decl Name Name))
+  -- ^ (errors, root name---if we could find it, declarations)
+parseSpecAndDeps file mbRoot =
   do
     c <- canonicalizePath file
     m <- parseFromFile spec file
     let s = State { loadedSpec = mempty, nextId = 1 }
         done = Set.singleton c
-    (is, s1) <- parseImports done [] s (moduleImports m)
+    (is, s1) <- parseImports c done [] s (moduleImports m)
     let m1 = m { moduleImports = is }
         ps = ParsedSpec {
                psId = 0,
@@ -73,13 +94,50 @@ parseSpecAndDeps file =
                psFile = c
              }
     let parsed = Map.fromList [ (psId p, p) | p <- ps : Map.elems (loadedSpec s1) ]
-    pure (Map.unions <$> mapM (resolveModule parsed) (Map.elems parsed))
+        (errs, (roots, decls)) = mapAndUnzipM (resolveModule parsed) (Map.elems parsed)
+    let root =
+          case mbRoot of
+            Nothing ->
+              case roots of
+                [] -> Nothing
+                mb : _ -> mb
+            Just x
+              | any ((== x) . declName) (moduleDecls m1) ->
+                Just Name { nameFileId = 0, nameFile = c, nameText = x }
+              | otherwise -> Nothing
+    let mp = Map.unions decls
+    let allErrs = checkRecursive mp ++ errs
+    pure (allErrs, root, mp)
 
-
-resolveModule :: Map Int ParsedSpec -> ParsedSpec -> ([ResolveError], Map Name (Decl Name Name))
-resolveModule ms m =
-  (repeats ++ errs, Map.fromList [ (declName d, d) | d <- resolved ])
+checkRecursive :: Map Name (Decl Name Name) -> [ResolveError]
+checkRecursive mp = [ RecursiveDeclarations ns | CyclicSCC ns <- recs ]
   where
+  recs = stronglyConnComp (map node (Map.elems mp))
+  node d =
+    let deps = directDeps (declDef d)
+    in ((declRange d, declName d), declName d, Set.toList deps)
+
+-- | Types that we depend on that are not under a constructor
+directDeps :: Type Name -> Set Name
+directDeps ty =
+  case ty of
+    TExact {} -> mempty
+    TBuiltIn {} -> mempty
+    TObject {} -> mempty
+    TArray {} -> mempty
+    TTuple {} -> mempty
+    TNamed x -> Set.singleton x
+    TLocated _ t -> directDeps t
+    x :| y -> Set.union (directDeps x) (directDeps y)
+
+
+
+
+resolveModule :: Map Int ParsedSpec -> ParsedSpec -> ([ResolveError], (Maybe Name, Map Name (Decl Name Name)))
+resolveModule ms m =
+  (repeats ++ errs, (root, Map.fromList [ (declName d, d) | d <- resolved ]))
+  where
+  root = declName <$> listToMaybe resolved
   (errs, resolved) = mapM (resolveDecl (psId m) (psFile m) env) (moduleDecls mo)
   mo  = psModule m
   env = Map.unionsWith (++) (localEnv : map (envFromImport ms) (moduleImports mo))
@@ -107,9 +165,6 @@ resolveModule ms m =
                               }
                               ]) | d <- moduleDecls mo ]
 
-  
-
-
 resolveDecl :: Int -> FilePath -> Map QName [Name] -> Decl Text QName -> ([ResolveError], Decl Name Name)
 resolveDecl i n mp d =
   do
@@ -123,19 +178,16 @@ resolveType :: Map QName [Name] -> SourceRange -> Type QName -> ([ResolveError],
 resolveType mp r t =
   case t of
     TExact v -> pure (TExact v)
+    TBuiltIn b -> pure (TBuiltIn b)
     t1 :| t2 -> (:|) <$> resolveType mp r t1 <*> resolveType mp r t2
-    TNumber -> pure TNumber
-    TBoolean -> pure TBoolean
-    TString -> pure TString
     TObject fs -> TObject <$> mapM resolveField fs
     TArray elT -> TArray <$> resolveType mp r elT
     TTuple ts -> TTuple <$> mapM (resolveType mp r) ts
-    TAny -> pure TAny
     TNamed n ->
       case Map.lookup n mp of
         Just [x] -> pure (TNamed x) 
         Just xs@(x1 : _) -> ([AmbiguousName r n xs], TNamed x1)
-        _                -> ([UndefinedName r n], TAny)
+        _                -> ([UndefinedName r n], TBuiltIn TAny)
     TLocated r1 t1 -> TLocated r1 <$> resolveType mp r1 t1
   where
   resolveField fi =
@@ -149,10 +201,15 @@ envFromImport :: Map Int ParsedSpec -> Import -> Map QName [Name]
 envFromImport ms imp =
   case Map.lookup i ms of
     Nothing -> mempty
-    Just m -> Map.fromList [ name (psFile m) (declName d) | d <- moduleDecls (psModule m) ]
+    Just m ->
+      Map.fromList [ name (psFile m) (declName d)
+                   | d <- moduleDecls (psModule m), consider (declName d) ]
   where
   i        = importId imp
-  qual     = maybe Unqual Qual (importAs imp)
+  (consider,qual) =
+    case importSpec imp of
+      ImportAll q -> (const True, Qual q)
+      ImportList xs -> ((`elem` xs), Unqual)
   name f x = (qual x, [Name { nameFile = f, nameText = x, nameFileId = i }])
 
 
@@ -167,20 +224,23 @@ data State = State {
   nextId     :: Int
 }
 
+data BadImport = BadImport SourceRange FilePath IOException deriving Show
+instance Exception BadImport
 
-parseImports :: Set FilePath -> [Import] -> State -> [Import] -> IO ([Import], State)
-parseImports done doneIs s imps =
+parseImports :: FilePath -> Set FilePath -> [Import] -> State -> [Import] -> IO ([Import], State)
+parseImports file done doneIs s imps =
   case imps of
     [] -> pure (reverse doneIs, s)
     imp : is ->
-      do (i,s1) <- parseImport done s imp
-         parseImports done (i : doneIs) s1 is
+      do (i,s1) <- parseImport file done s imp
+         parseImports file done (i : doneIs) s1 is
           
-parseImport :: Set FilePath -> State -> Import -> IO (Import, State)
-parseImport done s imp =
+parseImport :: FilePath -> Set FilePath -> State -> Import -> IO (Import, State)
+parseImport file done s imp =
   do
-    let f' = Text.unpack (importFile imp)
-        f = if takeExtension f' == ext then f' else addExtension f' ext
+    let f1 = Text.unpack (importFile imp)
+        f2 = if takeExtension f1 == ext then f1 else addExtension f1 ext
+        f  = if isRelative f2 then takeDirectory file </> f2 else f2
     c <- canonicalizePath f
     when (c `Set.member` done)
       (fail (show (importRange imp) ++ ": Recusive dependency."))
@@ -189,18 +249,19 @@ parseImport done s imp =
         Just l -> pure (psId l, s)
         Nothing ->
           do
-              m <- parseFromFile spec f
-              let done1 = Set.insert c done
-              let i  = nextId s
-                  s1 = s { nextId = i + 1 }
-              (is1,s2) <- parseImports done1 [] s1 (moduleImports m)
-              let p  = ParsedSpec {
-                        psId = i,
-                        psModule = m { moduleImports = is1 },
-                        psFile = c
-                      }
-                  s3 = s2 { loadedSpec = Map.insert c p (loadedSpec s2) }
-              pure (i, s3)
+            m <- parseFromFile spec f `catch` \e ->
+                  throwIO (BadImport (importRange imp) f e)
+            let done1 = Set.insert c done
+            let i  = nextId s
+                s1 = s { nextId = i + 1 }
+            (is1,s2) <- parseImports c done1 [] s1 (moduleImports m)
+            let p  = ParsedSpec {
+                      psId = i,
+                      psModule = m { moduleImports = is1 },
+                      psFile = c
+                    }
+                s3 = s2 { loadedSpec = Map.insert c p (loadedSpec s2) }
+            pure (i, s3)
     pure (imp { importId = n }, s1)
 
 
