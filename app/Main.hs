@@ -50,11 +50,10 @@ main =
                 hFlush stdout
                 js <- parseFromFile value f
                 case validateDecl ds e js of
-                  Match -> putStrLn "  [OK]"
-                  PartialMatch _ es  -> showErrors (map pp es)
-                  Mismatch es  -> showErrors (map pp es)
+                  [] -> putStrLn "  [OK]"
+                  es  -> showErrors (map pp es)
               `catches` [
-                Handler \(ParseError p) -> showErrors [ text (prettySourcePosLong p) <.> ": parse error" ],
+                Handler \(p :: ParseError)  -> showErrors [ pp p ],
                 Handler \(_ :: IOException) -> showErrors [ "Cannot read file" <+> text (show f) ]
               ]
 
@@ -68,9 +67,9 @@ main =
           exitFailure
       
   `catches` [
-    Handler \(ParseError p) ->
+    Handler \(p :: ParseError) ->
       do
-        hPutStrLn stderr (prettySourcePosLong p ++ ": parse error")
+        hPrint stderr (pp p)
         exitFailure,
     Handler \(BadImport srcRange file _err) ->
       do

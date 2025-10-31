@@ -6,6 +6,7 @@ import Data.Text(Text)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Text.ParserCombinators.ReadP(readP_to_S)
+import Data.Map qualified as Map
 import Control.Exception(Exception(..), throwIO)
 import Control.Monad(liftM,ap)
 import Data.Scientific qualified as Sc
@@ -105,7 +106,7 @@ decl                        :: { Decl Text QName }
 
 type                        :: { Type QName }
   : atype                      { $1 }
-  | type '|' type              { TLocated (fromMaybe $2 (typeRange $1) <-> fromMaybe $2 (typeRange $3)) ($1 :| $3) }
+  | type '|' type              { TLocated (fromMaybe $2 (typeRange $1) <-> fromMaybe $2 (typeRange $3)) (orTypes $1 $3) }
 
 atype                       :: { Type QName }
   : qname                      { uncurry TLocated (fmap TNamed $1) }
@@ -114,7 +115,7 @@ atype                       :: { Type QName }
   | 'boolean'                  { TLocated $1 (TBuiltIn TBoolean) }
   | 'string'                   { TLocated $1 (TBuiltIn TString) }
   | 'any'                      { TLocated $1 (TBuiltIn TAny) }
-  | '{' fields '}'             { TLocated ($1 <-> $3) (TObject $2) }
+  | '{' fields '}'             { TLocated ($1 <-> $3) (TObject (MatchFields $2)) }
   | '[' types ']'              { TLocated ($1 <-> $3) (TTuple $2) }
   | '(' type ')'               { $2 }
   | atype '[' ']'              { TLocated (fromMaybe $2 (typeRange $1) <-> $3) (TArray $1) }
@@ -157,17 +158,17 @@ field_name_opt               :: { FieldName }
   : field_name                  { $1 }
   | field_name '?'              { $1 { fieldRequired = False } }
 
-field                        :: { Field QName }
-  : field_name_opt ':' type     { $1 :> $3 }
-  | '...'                        { OtherFields }
+field                        :: { FieldSpecAnd QName }
+  : field_name_opt ':' type     { FieldSpecAnd (Map.singleton (fieldName $1) ($1, $3)) False }
+  | '...'                       { FieldSpecAnd Map.empty True }
 
-fields1                      :: { [Field QName] }
-  : field                       { [$1] }
-  | fields1 ',' field           { $3 : $1 }
+fields1                      :: { FieldSpecAnd QName }
+  : field                       { $1  }
+  | fields1 ',' field           {% case andFields $1 $3 of Left es -> parseError (DuplicateFields es); Right a -> pure a }
 
-fields                       :: { [Field QName] }
-  : fields1                     { reverse $1 }
-  | {- empty -}                 { [] }
+fields                       :: { FieldSpecAnd QName }
+  : fields1                     { $1 }
+  | {- empty -}                 { FieldSpecAnd Map.empty False }
 
 
 

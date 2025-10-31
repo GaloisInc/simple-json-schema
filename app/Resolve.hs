@@ -180,7 +180,7 @@ resolveType mp r t =
     TExact v -> pure (TExact v)
     TBuiltIn b -> pure (TBuiltIn b)
     t1 :| t2 -> (:|) <$> resolveType mp r t1 <*> resolveType mp r t2
-    TObject fs -> TObject <$> mapM resolveField fs
+    TObject fs -> TObject <$>resolveFieldSpec mp fs
     TArray elT -> TArray <$> resolveType mp r elT
     TTuple ts -> TTuple <$> mapM (resolveType mp r) ts
     TNamed n ->
@@ -189,13 +189,22 @@ resolveType mp r t =
         Just xs@(x1 : _) -> ([AmbiguousName r n xs], TNamed x1)
         _                -> ([UndefinedName r n], TBuiltIn TAny)
     TLocated r1 t1 -> TLocated r1 <$> resolveType mp r1 t1
+
+resolveFieldSpec :: Map QName [Name] -> FieldSpec QName -> ([ResolveError], FieldSpec Name)
+resolveFieldSpec env s =
+  case s of
+    CaseField f mp -> (errs, CaseField f fs)
+      where (errs, fs) = traverse (traverse (resolveFieldSpec env)) mp
+    OrFields f1 f2 -> (es1 ++ es2, OrFields f1' f2')
+      where
+      (es1, f1') = resolveFieldSpec env f1
+      (es2, f2') = resolveFieldSpec env f2  
+    MatchFields fs -> MatchFields <$> resolveFieldSpecAnd env fs
+
+resolveFieldSpecAnd :: Map QName [Name] -> FieldSpecAnd QName -> ([ResolveError], FieldSpecAnd Name)
+resolveFieldSpecAnd env fs = (errs, FieldSpecAnd { matchFields = fs', otherFieldsOk = otherFieldsOk fs })
   where
-  resolveField fi =
-    case fi of
-      f :> ft ->
-        do t1 <- resolveType mp r ft
-           pure (f :> t1)
-      OtherFields -> pure OtherFields
+  (errs, fs') = traverse (\(f,t) -> (,) f <$> resolveType env (fieldRange f) t) (matchFields fs)
 
 envFromImport :: Map Int ParsedSpec -> Import -> Map QName [Name]
 envFromImport ms imp =

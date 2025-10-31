@@ -10,6 +10,8 @@ import Control.Monad(liftM,ap)
 import LexerUtils
 import AlexTools
 import Lexer
+import AST
+import PP
 
 matchLexeme :: Lexeme Token -> (Token, (SourceRange, Text))
 matchLexeme l = (lexemeToken l, (lexemeRange l, lexemeText l))
@@ -34,33 +36,46 @@ parse p file = parseAt p (startPos file)
 
 parseAt :: Parser a -> SourcePos -> Text -> Either ParseError a
 parseAt parser pos txt =
-  case unP parser (pos,lexerAt pos txt) of
-    (Just a, _) -> Right a
-    (Nothing, (p,_)) -> Left (ParseError p)
+  case fst (unP parser (pos,lexerAt pos txt)) of
+    Right a -> Right a
+    Left e -> Left e
 
-newtype ParseError = ParseError SourcePos
+data ParseError =
+    ParseError SourcePos
+  | DuplicateFields [(FieldName,FieldName)]
+
+instance PP ParseError where
+  pp err =
+    case err of
+      ParseError p -> text (prettySourcePosLong p) <.> ":" <+> "parse error"
+      DuplicateFields xs ->
+        let loc short = text . (if short then prettySourcePos else prettySourcePosLong)
+                      . sourceFrom . fieldRange
+        in
+        vcat [ (loc False x <.> ": Duplicate field")
+               $$ nest 2 ("See also:" <+> loc True y)
+             | (x,y) <- xs ]
 
 instance Show ParseError where
-  show (ParseError p) = "Parse error at " ++ show p
+  show = show . pp
 
 instance Exception ParseError
 
-
 type RW = (SourcePos, [Lexeme Token])
-newtype Parser a = Parser { unP :: RW -> (Maybe a, RW) }
+newtype Parser a = Parser { unP :: RW -> (Either ParseError a, RW) }
 
 instance Functor Parser where
   fmap = liftM
 
 instance Applicative Parser where
-  pure a = Parser \inp -> (Just a, inp)
+  pure a = Parser \inp -> (Right a, inp)
   (<*>) = ap
 
 instance Monad Parser where
   m >>= f = Parser \inp ->
     case unP m inp of
-      (Nothing, inp1) -> (Nothing, inp1)
-      (Just a, inp1) -> unP (f a) inp1
+      (Left err, inp1) -> (Left err, inp1)
+      (Right a, inp1) -> unP (f a) inp1
 
 nextToken :: (Lexeme Token -> Parser a) -> Parser a
 nextToken k = Parser \(lastP, inp) ->
@@ -72,4 +87,7 @@ nextToken k = Parser \(lastP, inp) ->
   in m (sourceTo (lexemeRange t), ts)
 
 happyError :: Parser a
-happyError = Parser \inp -> (Nothing, inp)
+happyError = Parser \inp -> (Left (ParseError (fst inp)), inp)
+
+parseError :: ParseError -> Parser a
+parseError p = Parser \inp -> (Left p, inp)
