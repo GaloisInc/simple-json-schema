@@ -82,7 +82,7 @@ data Value = VNull | VBool Bool | VNumber Scientific | VString Text
   deriving (Show,Eq,Ord)
 
 data FieldSpec nm =
-    CaseField Text (Map Value (SourceRange, FieldSpec nm))
+    CaseField Text (Map Value ([SourceRange], FieldSpec nm))
   | MatchFields (FieldSpecAnd nm)
   | OrFields (FieldSpec nm) (FieldSpec nm)
     deriving Show
@@ -136,7 +136,7 @@ orFields fs1 fs2 =
     in
     case Map.lookup f fs of
       Just (fn,ty) | fieldRequired fn, Just vs <- isK ty [] ->
-        let k = (fieldRange fn, MatchFields fsS { matchFields = Map.delete f fs })
+        let k = ([fieldRange fn], MatchFields fsS { matchFields = Map.delete f fs })
         in CaseField f $ foldr (\v mp -> Map.insertWith joinK v k mp) ks vs
       _ -> dflt
 
@@ -147,7 +147,7 @@ orFields fs1 fs2 =
       TExact v -> Just (v : vs)
       _ -> Nothing
 
-  joinK (r,a) (_,b) = (r, orFields a b) -- XXX: location?
+  joinK (r1,a) (r2,b) = (r1 ++ r2, orFields a b) -- XXX: location?
 
   matchMatch fs gs =
     let fieldsF = matchFields fs
@@ -157,8 +157,8 @@ orFields fs1 fs2 =
           | fieldRequired f1, fieldRequired f2,
             Just vs1 <- isK t1 [], Just vs2 <- isK t2 [],
             let nm = fieldName f1
-                lhs = (fieldRange f1, MatchFields fs { matchFields = Map.delete nm fieldsF })
-                rhs = (fieldRange f2, MatchFields gs { matchFields = Map.delete nm fieldsG })
+                lhs = ([fieldRange f1], MatchFields fs { matchFields = Map.delete nm fieldsF })
+                rhs = ([fieldRange f2], MatchFields gs { matchFields = Map.delete nm fieldsG })
           = Just (nm, [ (v1, lhs) | v1 <- vs1 ] ++ [ (v2, rhs) | v2 <- vs2 ])
           | otherwise = Nothing
     in case Map.minView (Map.mapMaybe okTag common) of

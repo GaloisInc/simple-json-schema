@@ -10,7 +10,7 @@ import PP
 
 data ValidationError = ValidataionError {
   jsonRange   :: SourceRange,
-  schemaRange :: SourceRange,
+  schemaRange :: [SourceRange],
   problem     :: ValidationProblem
 }
 
@@ -23,21 +23,28 @@ data ValidationProblem =
 instance PP ValidationError where
   pp err =
     text (prettySourceRangeLong (jsonRange err)) <.> ":" <+>
-    pp (problem err) $$ nest 2 ("See schema:" <+> text (prettySourceRangeLong (schemaRange err)))
+    pp (problem err) $$
+      nest 2 ("See schema:" $$
+        nest 2 (vcat [ text (prettySourceRangeLong r) | r <- schemaRange err ]))
     
 instance PP ValidationProblem where
   pp p =
     case p of
-      ShapeMismatch t j -> "JSON value shape does not match schema" $$ nest 2 (vcat [pp t, pp j])
+
+      ShapeMismatch t j -> "JSON value shape does not match schema" $$
+        nest 2 (vcat [pp t, pp j])
+
       TupleLengthMismatch e a ->
-        "Invalid array length:" $$ nest 2 (vcat [ "Expected:" <+> int e, "Actual:" <+> int a ])
+        "Invalid array length:" $$
+          nest 2 (vcat [ "Expected:" <+> int e, "Actual:" <+> int a ])
+
       MissingField t -> "Object is missing required field:" <+> text (show t)
+
       UnexpectedField t -> "Object has an additional field:" <+> text (show t)
 
 type Defs = Map Name (Decl Name Name)
 
 type ValidataionResult = [ValidationError]
-
 
 validateDecl :: Defs -> Name -> JSValue -> ValidataionResult
 validateDecl defs x val =
@@ -60,7 +67,7 @@ validateType defs r ty val =
 
     TObject os ->
       case jsValue val of
-        JSObject fs -> validateFieldSpec defs r (jsRange val) os fs
+        JSObject fs -> validateFieldSpec defs [r] (jsRange val) os fs
         _ -> mismatch
 
     TArray t ->
@@ -87,12 +94,18 @@ validateType defs r ty val =
   err p =
     ValidataionError {
       jsonRange = jsRange val,
-      schemaRange = r,
+      schemaRange = [r],
       problem = p
     }
   mismatch = [ err (ShapeMismatch ty val) ]
 
-validateFieldSpec :: Defs -> SourceRange -> SourceRange -> FieldSpec Name -> Map Text JSField -> ValidataionResult
+validateFieldSpec ::
+  Defs ->
+  [SourceRange] ->
+  SourceRange ->
+  FieldSpec Name ->
+  Map Text JSField ->
+  ValidataionResult
 validateFieldSpec defs srng rng s fs =
   case s of
     CaseField f ks ->
@@ -106,7 +119,8 @@ validateFieldSpec defs srng rng s fs =
               where ty = foldr1 (:|) (map TExact (Map.keys ks))
     MatchFields fsSpec -> validateFieldSpecAnd defs srng rng fsSpec fs
     OrFields xs ys ->
-      case (validateFieldSpec defs srng rng xs fs, validateFieldSpec defs srng rng ys fs) of
+      case (validateFieldSpec defs srng rng xs fs,
+            validateFieldSpec defs srng rng ys fs) of
         ([],_) -> []
         (_,[]) -> []
         (es1,es2) -> es1 ++ es2 -- XXX
@@ -126,7 +140,7 @@ toValue js =
     JSString s -> Just (VString s)
     _ -> Nothing
 
-validateFieldSpecAnd :: Defs -> SourceRange -> SourceRange -> FieldSpecAnd Name -> Map Text JSField -> ValidataionResult
+validateFieldSpecAnd :: Defs -> [SourceRange] -> SourceRange -> FieldSpecAnd Name -> Map Text JSField -> ValidataionResult
 validateFieldSpecAnd defs srng jrng fspecAnd fs
   | null shapeErrs = concat (Map.elems (Map.intersectionWith checkF fspec fs))
   | otherwise = shapeErrs
@@ -138,7 +152,7 @@ validateFieldSpecAnd defs srng jrng fspecAnd fs
   missing =
     [ ValidataionError {
       jsonRange = jrng,
-      schemaRange = fieldRange f,
+      schemaRange = [fieldRange f],
       problem = MissingField (fieldName f)
       }
     | (f,_) <- Map.elems (Map.difference fspec fs)
@@ -179,7 +193,7 @@ validateBuiltIn r ty val =
   mismatch =
     [ ValidataionError {
         jsonRange = jsRange val,
-        schemaRange = r,
+        schemaRange = [r],
         problem = ShapeMismatch (TBuiltIn ty) val
       }
     ]
@@ -198,7 +212,7 @@ validateValue r v val =
   check x y = if x == y then [] else mismatch
   mismatch = [ ValidataionError {
                  jsonRange = jsRange val,
-                 schemaRange = r,
+                 schemaRange = [r],
                  problem = ShapeMismatch (TExact v) val
                }
              ]
