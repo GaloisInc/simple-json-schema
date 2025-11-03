@@ -17,7 +17,6 @@ $idchar         = [a-zA-Z_]
 $digit          = 0-9
 $hex_digit      = [$digit a-f A-F]
 $char           = [^\"\\]
-@unsigned       = $digit+
 @number         = "-"? (0 | [1-9]$digit*) ("." $digit+)? ([Ee] [\+\-]? $digit+)?
 @ident          = $idchar+ [$idchar $digit]*
 @esc            = [\"\\\/bfnrt] | u$hex_digit{4}
@@ -25,6 +24,7 @@ $char           = [^\"\\]
 :-
 
 <0> {
+\" $char* \"    { simpleStringLit }
 \"              { startStringLit }
 "("             { lexeme TokOpenParen }
 ")"             { lexeme TokCloseParen }

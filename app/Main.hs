@@ -11,7 +11,9 @@ import System.IO
 import AlexTools
 import ParserUtils(ParseError(..), parseFromFile)
 import Resolve
+import JSON.Lexer(lexerAt)
 import JSON.Parser(value)
+import JSON.AesonParser qualified as JS
 import PP
 import Validate
 
@@ -48,7 +50,9 @@ main =
               do
                 putStr f
                 hFlush stdout
-                js <- parseFromFile value f
+                js <- if optAesonParser opts
+                        then JS.parseFromFile f
+                        else parseFromFile lexerAt value f
                 case validateDecl ds e js of
                   [] -> putStrLn "  [OK]"
                   es  -> showErrors (map pp es)
@@ -82,7 +86,8 @@ data Options = Options {
   optShowHelp :: Bool,
   optDebugPP  :: Bool,
   optSchema   :: Maybe FilePath,
-  optEntry    :: Maybe Text
+  optEntry    :: Maybe Text,
+  optAesonParser :: Bool
 }
 
 defaultOptions :: Options
@@ -91,7 +96,8 @@ defaultOptions = Options {
   optShowHelp = False,
   optDebugPP  = False,
   optSchema   = Nothing,
-  optEntry    = Nothing
+  optEntry    = Nothing,
+  optAesonParser = False
 }
 
 options :: OptSpec Options
@@ -112,6 +118,10 @@ options = optSpec {
     Option [] ["dbg-pp"]
     "Pretty print the parsed schema."
     $ NoArg \o -> Right o { optDebugPP = True },
+
+    Option [] ["fast"]
+    "Use a fast JSON parser, that reports no location information."
+    $ NoArg \o -> Right o { optAesonParser = True },
       
     Option [] ["help"]
     "Show this help"

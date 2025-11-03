@@ -12,7 +12,7 @@ import Control.Exception(Exception(..), throwIO)
 import Control.Monad(liftM,ap)
 import Data.Scientific qualified as Sc
 import AlexTools
-import Lexer
+import JSON.Lexer
 import ParserUtils
 import JSON.AST
 }

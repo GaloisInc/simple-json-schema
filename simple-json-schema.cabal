@@ -20,6 +20,7 @@ common settings
       TemplateHaskell
       BlockArguments
       ImportQualifiedPost
+      BangPatterns
       ViewPatterns
       LambdaCase
       ScopedTypeVariables
@@ -29,12 +30,12 @@ executable simple-json-schema
     main-is:          Main.hs
     other-modules:
       Lexer, LexerUtils, Parser, ParserUtils, AST, Resolve, Validate, PP,
-      JSON.Parser, JSON.AST
+      JSON.Lexer, JSON.Parser, JSON.AST, JSON.AesonParser
     -- other-extensions:
     build-depends:
-      base, text, array, containers, directory, filepath,
+      base, text, array, bytestring, containers, directory, filepath,
       alex-tools, pretty, scientific, simple-get-opt,
-      GraphSCC
+      GraphSCC, aeson, vector
     hs-source-dirs:   app
     default-language: Haskell2010
     build-tool-depends: alex:alex, happy:happy

@@ -9,7 +9,6 @@ import Control.Exception(Exception,throwIO)
 import Control.Monad(liftM,ap)
 import LexerUtils
 import AlexTools
-import Lexer
 import AST
 import PP
 
@@ -22,23 +21,26 @@ parseNumber (rng, txt) =
     [(x,"")] -> pure (rng, x)
     _ -> happyError
 
+type Lexer = SourcePos -> Text -> [Lexeme Token]
 
 -- | Throws `ParseError` on parser error
-parseFromFile :: Parser a -> FilePath -> IO a
-parseFromFile p file =
-  do txt <- Text.readFile file
-     case parse p (Text.pack file) txt of
-       Left err -> throwIO err
-       Right a -> pure a
+parseFromFile :: Lexer -> Parser a -> FilePath -> IO a
+parseFromFile l p file =
+  do
+    txt <- Text.readFile file
+    case parse l p (Text.pack file) txt of
+      Left e -> throwIO e
+      Right a -> pure a
 
-parse :: Parser a -> Text -> Text -> Either ParseError a
-parse p file = parseAt p (startPos file)
+parse :: Lexer -> Parser a -> Text -> Text -> Either ParseError a
+parse l p file = parseAt l p (startPos file)
 
-parseAt :: Parser a -> SourcePos -> Text -> Either ParseError a
-parseAt parser pos txt =
-  case fst (unP parser (pos,lexerAt pos txt)) of
+parseAt :: Lexer -> Parser a -> SourcePos -> Text -> Either ParseError a
+parseAt le parser pos txt =
+  case fst (unP parser (pos,le pos txt)) of
     Right a -> Right a
     Left e -> Left e
+
 
 data ParseError =
     ParseError SourcePos

@@ -17,6 +17,7 @@ import System.FilePath(takeExtension, addExtension, splitPath, joinPath, isRelat
 import AlexTools
 import PP
 import Parser(spec)
+import Lexer(lexerAt)
 import ParserUtils
 import AST
 
@@ -83,7 +84,7 @@ parseSpecAndDeps ::
 parseSpecAndDeps file mbRoot =
   do
     c <- canonicalizePath file
-    m <- parseFromFile spec file
+    m <- parseFromFile lexerAt spec file
     let s = State { loadedSpec = mempty, nextId = 1 }
         done = Set.singleton c
     (is, s1) <- parseImports c done [] s (moduleImports m)
@@ -258,7 +259,7 @@ parseImport file done s imp =
         Just l -> pure (psId l, s)
         Nothing ->
           do
-            m <- parseFromFile spec f `catch` \e ->
+            m <- parseFromFile lexerAt spec f `catch` \e ->
                   throwIO (BadImport (importRange imp) f e)
             let done1 = Set.insert c done
             let i  = nextId s

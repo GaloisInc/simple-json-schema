@@ -62,6 +62,17 @@ inStringLit k =
       InStringLit s b -> k s b
       InTop           -> pure []
 
+simpleStringLit :: Action State [Lexeme Token]
+simpleStringLit =
+  do
+    s <- matchText
+    r <- matchRange
+    pure [ Lexeme {
+      lexemeRange = r,
+      lexemeToken = TokString,
+      lexemeText = Text.init (Text.drop 1 s)
+    } ]
+
 addStringLit :: Char -> Action State [Lexeme Token]
 addStringLit c = inStringLit \s b ->
   do
