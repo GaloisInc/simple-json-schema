@@ -55,6 +55,16 @@ jobs:
         OS_TAG: ${{ matrix.os }}
         ARCH_TAG: ${{ runner.arch }}
 
+    - name: Save Cable Store in the Cache
+      uses: actions/cache/save@v4
+      if: always()
+      with:
+        path: |
+          ${{ steps.setup-haskell.outputs.cabal-store }}
+          dist-newstyle
+        key: ${{ env.CACHE_VERSION }}-cabal-${{ matrix.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-${{ github.sha }}
+          ${{ env.CACHE_VERSION }}-cabal-${{ matrix.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-
+
     - name: Release
       if: github.ref_type == 'tag'
       uses: softprops/action-gh-release@v2
