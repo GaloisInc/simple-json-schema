@@ -1,9 +1,10 @@
 #/bin/bash
 
 set -e
+set -x
 
 NAME=simple-json-schema
 cabal build $NAME
 mkdir -p bin
-cp $(cabal list-bin -v0 $NAME) bin/$(scripts/version)
+cp $(cabal list-bin -v0 $NAME) "bin/$NAME-$(scripts/version)"
 
