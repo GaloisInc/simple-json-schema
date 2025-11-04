@@ -13,7 +13,7 @@ The most common way to use the tool are as follows:
 # Check if `my-schema.ts` is a valid schema specification
 simple-json-schema my-schema.ts
 
-# Check if `my-doc.json` conform to the schema described in `my-schema.ts`
+# Check if `my-doc.json` conforms to the schema described in `my-schema.ts`
 simple-json-schema my-schema.ts --validate=my-doc.json
 ```
 
@@ -27,7 +27,7 @@ simple-json-schema my-schema.ts --validate=my-doc.json --entry=SomeDef
 # Writing Schemas
 
 A schema file is very similar to a TypeScript file containing a collection
-of type synonyms.  The following grammar specified the format of schema
+of type synonyms.  The following grammar specifies the format of schema
 and describes the intended semantics.
 
 
@@ -40,27 +40,33 @@ IMPORT :=
     // Use all definitions from file STRING, with names qualified by IDENT.
     // For example, if "Other.ts" defines `x`, then
     // `import * as O from "Other.ts"` will introduce `O.x` in scope.
+    // NOTE: This is different from TypeScript in that it does not refer
+    // to the default export.
     
   | import { IDENT (,IDENT)* } from STRING
     // Use only the listed definitions from file STRING, with unqualified names.
     // For example, `import { a, b } from "Other.ts"` will introduce
-    // definitions `a` and `b` defined in "Other.ts" to the current scope
+    // definitions `a` and `b` defined in "Other.ts" to the current scope.
 
 
-TYPE_DEF := type IDENT = TYPE
+TYPE_DEF :=
+
+    type IDENT = TYPE
     // Define a named type.
     // Definitions may be recursive, but only under a value constructor.
     // For example, `type X = [X] | boolean` is OK, but `type X = X | boolean`
     // is not.
+    // NOTE: A deviation form TypeScript is that all definitions are considered
+    // to be exported, so there is no need to write an explicit `export`.
 
 
 TYPE :=
 
     IDENT | IDENT.IDENT
-    // Match the values accepted by a named types
+    // Match the values accepted by this named type.
  
   | LITERAL
-    // Match a specific JSON value
+    // Match a specific JSON value.
 
   | TYPE "|" TYPE
     // Match a value accepted by either type.
@@ -80,16 +86,18 @@ TYPE :=
     // Match any JSON value.
 
   | {} | { FIELD (,FIELD)* }
-    // Match a JSON object, whose fields match FIELDS.
+    // Match a JSON object, whose fields match the given FIELDs.
+    // The order of the fields is not important, and fields cannot
+    // be repeated.
 
   | TYPE[]
-    // Matches array JSON values, with elements matching TYPE.
+    // Matches a JSON array, whose values match TYPE.
     // For example, `number[]` matches arrays with number elements.
 
   | "(" TYPE ")"
-    // Parens may be used for grouping as usual.
+    // Parens may be used for grouping, as usual.
     // For example `("a" | "b")[]` matches arrays
-    // whose elements are `"a"` or `"b`"
+    // whose elements are `"a"` or `"b"`
 
   | [] | [ TYPE (,TYPE)* ]
     // Matches JSON arrays of a fixed length, with elements matching types
@@ -136,4 +144,7 @@ LITERAL :=
     // In contrast, `{ x: boolean }` matches objects that have exactly one
     // boolean field named `x`.
     // NOTE: This is not a valid TypeScript type.
+
+FIELD_NAME := IDENT | STRING
+    // Quotes in field name are optional if the field is just an identifier.
 ```
