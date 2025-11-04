@@ -1,6 +1,6 @@
 cabal-version:      3.0
 name:               simple-json-schema
-version:            1.0
+version:            1.0.1
 synopsis:           A tool for validating JSON schemas.
 description:        A tool for validating JSON schemas.
 license:            ISC
