@@ -57,7 +57,7 @@ TYPE_DEF :=
 
     type IDENT = TYPE
     // Define a named type.
-    // A definition may be preceded by an option line doc-comments
+    // A definition may be preceded by some line doc-comments
     // (i.e., lines starting with `///`).
     // Definitions may be recursive, but only under a value constructor.
     // For example, `type X = [X] | boolean` is OK, but `type X = X | boolean`
@@ -137,13 +137,13 @@ LITERAL :=
 
     FIELD_NAME : TYPE
     // The object must have a field with the given name and matching TYPE
-    // A field may be preceded by an option line doc-comments
+    // A field may be preceded by some line doc-comments
     // (i.e., lines starting with `///`).
 
   | FIELD_NAME? : TYPE
     // The object is not required to have this field, but if it does,
     // then it should match TYPE
-    // A field may be preceded by an option line doc-comments
+    // A field may be preceded by some line doc-comments
     // (i.e., lines starting with `///`).
 
   | ...
