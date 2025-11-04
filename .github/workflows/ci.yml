@@ -22,6 +22,7 @@ jobs:
       matrix:
         os: [ubuntu-22.04, macos-14]
         ghc-version: [9.8.4]
+        cabal-version: [3.14.2.0]
 
     steps:
 
@@ -34,8 +35,8 @@ jobs:
       uses: haskell-actions/setup@v2
       id: setup-haskell
       with:
-        ghc-version: matrix.ghc-version
-        cabal-version: '3.14.2.0'
+        ghc-version:  ${{ matrix.ghc-version }}
+        cabal-version: ${{ matrix.cabal-version }}
 
     - name: Restore Cabal Store from the Cache
       uses: actions/cache/restore@v4
