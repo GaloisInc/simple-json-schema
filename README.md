@@ -1,0 +1,139 @@
+# Overview
+
+`simple-json-schema` is a tool for specifying JSON schemas, and validating that
+JSON documents conform to the schema.   It is similar to other tools,
+such as `JSON Schema`, but it aims for a more readable schema specification
+language, based on TypeScript types.
+
+# Usage
+
+The most common way to use the tool are as follows:
+
+```
+# Check if `my-schema.ts` is a valid schema specification
+simple-json-schema my-schema.ts
+
+# Check if `my-doc.json` conform to the schema described in `my-schema.ts`
+simple-json-schema my-schema.ts --validate=my-doc.json
+```
+
+By default, the tool will validate against the first definition the schema
+file.  To specify a different definition, you may use the `--entry` flag:
+
+```
+simple-json-schema my-schema.ts --validate=my-doc.json --entry=SomeDef
+```
+
+# Writing Schemas
+
+A schema file is very similar to a TypeScript file containing a collection
+of type synonyms.  The following grammar specified the format of schema
+and describes the intended semantics.
+
+
+```
+SCHEMA := IMPORT* TYPE_DEF*
+
+IMPORT :=
+
+    import * as IDENT from STRING
+    // Use all definitions from file STRING, with names qualified by IDENT.
+    // For example, if "Other.ts" defines `x`, then
+    // `import * as O from "Other.ts"` will introduce `O.x` in scope.
+    
+  | import { IDENT (,IDENT)* } from STRING
+    // Use only the listed definitions from file STRING, with unqualified names.
+    // For example, `import { a, b } from "Other.ts"` will introduce
+    // definitions `a` and `b` defined in "Other.ts" to the current scope
+
+
+TYPE_DEF := type IDENT = TYPE
+    // Define a named type.
+    // Definitions may be recursive, but only under a value constructor.
+    // For example, `type X = [X] | boolean` is OK, but `type X = X | boolean`
+    // is not.
+
+
+TYPE :=
+
+    IDENT | IDENT.IDENT
+    // Match the values accepted by a named types
+ 
+  | LITERAL
+    // Match a specific JSON value
+
+  | TYPE "|" TYPE
+    // Match a value accepted by either type.
+    // For example `"A" | "B"` matches either the JSON value "A" or "B".
+
+  | boolean
+    // Match any boolean JSON value.
+    // Equivalent to `"true" | "false"`.
+  
+  | number
+    // Match any numeric JSON value.
+    
+  | string
+    // Match any string JSON value.
+
+  | any
+    // Match any JSON value.
+
+  | {} | { FIELD (,FIELD)* }
+    // Match a JSON object, whose fields match FIELDS.
+
+  | TYPE[]
+    // Matches array JSON values, with elements matching TYPE.
+    // For example, `number[]` matches arrays with number elements.
+
+  | "(" TYPE ")"
+    // Parens may be used for grouping as usual.
+    // For example `("a" | "b")[]` matches arrays
+    // whose elements are `"a"` or `"b`"
+
+  | [] | [ TYPE (,TYPE)* ]
+    // Matches JSON arrays of a fixed length, with elements matching types
+    // in the corresponding positions.
+    // For example `[boolean,string]` matches 2 element arrays, where the
+    // first element should be a boolean, and the second one should be a string.
+
+  | TYPE?
+    // Equivalent to `TYPE | null`.
+    // NOTE: this is not a valid TypeScript type.
+
+LITERAL :=
+
+    null
+    // Matches the value `null`
+
+  | false
+    // Matches the value `false`
+
+  | true
+    Matches the value `true`
+
+  | STRING
+    // Matches this specific string literal in JSON format
+
+  | NUMBER
+    // Matches this specific numeric literal in JSON format
+
+  
+  FIELD :=
+
+    FIELD_NAME : TYPE
+    // The object must have a field with the given name and matching TYPE
+
+  | FIELD_NAME? : TYPE
+    // The object is not required to have this field, but if it does,
+    // then it should match TYPE
+
+  | ...
+    // Matches any fields that are not matched by another FIELD in the
+    // object specification.
+    // For example `{ x: boolean, ... }` matches objects that must have
+    // a boolean field name `x` and may have any other fields.
+    // In contrast, `{ x: boolean }` matches objects that have exactly one
+    // boolean field named `x`.
+    // NOTE: This is not a valid TypeScript type.
+```
