@@ -94,7 +94,7 @@ comments1                   :: { [Text] }
   | comments1 comment          { $2 : $1 }
 
 comment                     :: { Text }
-  : COMMENT                    { Text.drop 2 (snd $1) }
+  : COMMENT                    { Text.drop 3 (snd $1) }
 
 decls                       :: { [Decl Text QName] }
   : decls decl                 { $2 : $1 }

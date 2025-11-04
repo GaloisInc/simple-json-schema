@@ -33,6 +33,10 @@ describes the intended semantics, and points out deviations from TypeScript.
 
 ```
 SCHEMA := IMPORT* TYPE_DEF*
+    // The schema may contain comments as in TypeScript.
+    // These are generally ignored, except line comments starting with
+    // 3 slashes, which are doc-comments and may appear only before
+    // definitions or field constraints as described below.
 
 IMPORT :=
 
@@ -53,6 +57,8 @@ TYPE_DEF :=
 
     type IDENT = TYPE
     // Define a named type.
+    // A definition may be preceded by an option line doc-comments
+    // (i.e., lines starting with `///`).
     // Definitions may be recursive, but only under a value constructor.
     // For example, `type X = [X] | boolean` is OK, but `type X = X | boolean`
     // is not.
@@ -131,10 +137,14 @@ LITERAL :=
 
     FIELD_NAME : TYPE
     // The object must have a field with the given name and matching TYPE
+    // A field may be preceded by an option line doc-comments
+    // (i.e., lines starting with `///`).
 
   | FIELD_NAME? : TYPE
     // The object is not required to have this field, but if it does,
     // then it should match TYPE
+    // A field may be preceded by an option line doc-comments
+    // (i.e., lines starting with `///`).
 
   | ...
     // Matches any fields that are not matched by another FIELD in the
