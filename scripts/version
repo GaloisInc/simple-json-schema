@@ -1,0 +1,2 @@
+#!/bin/sh
+grep '^version' simple-json-schema.cabal | awk '{print $2 }'

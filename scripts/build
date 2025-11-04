@@ -1,0 +1,9 @@
+#/bin/bash
+
+set -e
+
+NAME=simple-json-schema
+cabal build $NAME
+mkdir -p bin
+cp $(cabal list-bin -v0 $NAME) bin/$(scripts/version)
+
