@@ -17,7 +17,7 @@ import System.FilePath(takeExtension, addExtension, splitPath, joinPath, isRelat
 import AlexTools
 import PP
 import Parser(spec)
-import Lexer(lexerAt)
+import Lexer(lexerAt,skipComments,Token)
 import ParserUtils
 import AST
 
@@ -74,6 +74,9 @@ instance PP ResolveError where
         [] -> True
         x : ys -> all (== x) ys
 
+schemaLexer :: SourcePos -> Text -> [Lexeme Token]
+schemaLexer p = skipComments . lexerAt p
+
 -- | Parse and resolve declarations from a bunch of files.
 -- Throws `ParseError`
 parseSpecAndDeps ::
@@ -84,7 +87,7 @@ parseSpecAndDeps ::
 parseSpecAndDeps file mbRoot =
   do
     c <- canonicalizePath file
-    m <- parseFromFile lexerAt spec file
+    m <- parseFromFile schemaLexer spec file
     let s = State { loadedSpec = mempty, nextId = 1 }
         done = Set.singleton c
     (is, s1) <- parseImports c done [] s (moduleImports m)
@@ -259,7 +262,7 @@ parseImport file done s imp =
         Just l -> pure (psId l, s)
         Nothing ->
           do
-            m <- parseFromFile lexerAt spec f `catch` \e ->
+            m <- parseFromFile schemaLexer spec f `catch` \e ->
                   throwIO (BadImport (importRange imp) f e)
             let done1 = Set.insert c done
             let i  = nextId s

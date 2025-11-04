@@ -40,7 +40,8 @@ data Token =
   | TokNumber
   | TokIdent
   | TokString
-  | TokLineComment
+  | TokDocComment
+  | TokComment
   | TokError
   | TokEOF
    deriving (Show)

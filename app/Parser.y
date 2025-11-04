@@ -44,7 +44,7 @@ import AST
   'number'  { (matchLexeme -> (TokKwNumber,     ($$,_))) }
   'boolean' { (matchLexeme -> (TokKwBoolean,    ($$,_))) }
   'any'     { (matchLexeme -> (TokKwAny,        ($$,_))) }
-  COMMENT   { (matchLexeme -> (TokLineComment,  $$)) }
+  COMMENT   { (matchLexeme -> (TokDocComment,   $$)) }
   IDENT     { (matchLexeme -> (TokIdent,        $$)) }
   NUMBER    { (matchLexeme -> (TokNumber  ,     $$)) }
   STRING    { (matchLexeme -> (TokString,       $$)) }

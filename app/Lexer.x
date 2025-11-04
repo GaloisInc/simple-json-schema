@@ -3,6 +3,7 @@ module Lexer (
   Token(..),
   lexer,
   lexerAt,
+  skipComments,
   Lexeme(..),
   SourceRange(..),
   SourcePos(..)
@@ -17,6 +18,7 @@ $idchar         = [a-zA-Z_]
 $digit          = 0-9
 $hex_digit      = [$digit a-f A-F]
 $char           = [^\"\\]
+@block_comment  = "/*" ([^\*]| "*" [^\/])* "*/"
 @number         = "-"? (0 | [1-9]$digit*) ("." $digit+)? ([Ee] [\+\-]? $digit+)?
 @ident          = $idchar+ [$idchar $digit]*
 @esc            = [\"\\\/bfnrt] | u$hex_digit{4}
@@ -51,7 +53,9 @@ $char           = [^\"\\]
 "number"        { lexeme TokKwNumber }
 "boolean"       { lexeme TokKwBoolean }
 "any"           { lexeme TokKwAny }
-"//" .*         { lexeme TokLineComment }
+"///" .*        { lexeme TokDocComment }
+"//" .*         { lexeme TokComment }
+@block_comment  { lexeme TokComment }
 @number         { lexeme TokNumber }
 @ident          { lexeme TokIdent }
 \n              ;
@@ -79,6 +83,13 @@ alexGetByte :: AlexInput -> Maybe (Word8, AlexInput)
 alexGetByte = makeAlexGetByte \c ->
   let n = fromEnum c
   in if n < 128 then toEnum n else 0
+
+skipComments :: [Lexeme Token] -> [Lexeme Token]
+skipComments = filter \x ->
+  case lexemeToken x of
+    TokComment -> False
+    _ -> True 
+
 
 lexer :: Text -> Text -> [Lexeme Token]
 lexer file = lexerAt (startPos file)
