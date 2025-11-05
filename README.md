@@ -27,7 +27,7 @@ simple-json-schema my-schema.ts --validate=my-doc.json --entry=SomeDef
 # Writing Schemas
 
 A schema file is very similar to a TypeScript file containing a collection
-of type synonyms.  The following grammar specifies the format of schema,
+of type synonyms.  The following grammar specifies the format of schemas,
 describes the intended semantics, and points out deviations from TypeScript.
 
 
@@ -80,7 +80,7 @@ TYPE :=
 
   | boolean
     // Match any boolean JSON value.
-    // Equivalent to `"true" | "false"`.
+    // Equivalent to `true | false`.
   
   | number
     // Match any numeric JSON value.
