@@ -1,6 +1,6 @@
 module JSON.AesonParser where
 
-import AlexTools
+import JSON.Lexer
 import JSON.AST
 import Data.Aeson qualified as JS
 import Data.Aeson.KeyMap qualified as JS
@@ -16,7 +16,7 @@ parseFromFile fp =
       Left err -> fail err
 
 dummy :: SourceRange
-dummy = range (startPos "")
+dummy = SourceRange 0 0
 
 toJSValue :: JS.Value -> JSValue
 toJSValue v =

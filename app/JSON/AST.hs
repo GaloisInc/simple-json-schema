@@ -3,25 +3,26 @@ module JSON.AST where
 import Data.Map(Map)
 import Data.Map qualified as Map
 import Data.Text(Text)
-import AlexTools
 import Data.Scientific(Scientific)
 import PP
+import JSON.Lexer(SourceRange(..))
+
 
 data JSValue = JSValue {
-  jsRange :: SourceRange,
-  jsValue :: JSValueShape
+  jsRange :: !SourceRange,
+  jsValue :: !JSValueShape
 }
 
 data JSValueShape =
     JSNull
-  | JSBool Bool
-  | JSString Text
-  | JSNumber Scientific
-  | JSArray [JSValue]
-  | JSObject (Map Text JSField)
+  | JSBool !Bool
+  | JSString !Text
+  | JSNumber !Scientific
+  | JSArray ![JSValue]
+  | JSObject !(Map Text JSField)
 
 data JSField = JSField {
-  jsFieldRange :: SourceRange,
+  jsFieldRange :: !SourceRange,
   jsFieldName  :: Text,
   jsFieldValue :: JSValue
 }

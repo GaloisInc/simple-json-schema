@@ -2,6 +2,7 @@ module Main where
 
 import Data.Text(Text)
 import Data.Text qualified as Text
+import Data.Text.Encoding.Error(UnicodeException)
 import Data.Map qualified as Map
 import Control.Exception
 import Control.Monad(when)
@@ -9,10 +10,9 @@ import SimpleGetOpt
 import System.Exit
 import System.IO
 import AlexTools
-import ParserUtils(ParseError(..), parseFromFile)
+import ParserUtils(ParseError(..))
 import Resolve
-import JSON.Lexer(lexerAt)
-import JSON.Parser(value)
+import JSON.Parser qualified as JSP
 import JSON.AesonParser qualified as JS
 import PP
 import Validate
@@ -52,7 +52,7 @@ main =
                 hFlush stdout
                 js <- if optAesonParser opts
                         then JS.parseFromFile f
-                        else parseFromFile lexerAt value f
+                        else JSP.parseJSON f
                 case validateDecl ds e js of
                   [] -> putStrLn "  [OK]"
                   es  -> showErrors (map pp es)
@@ -78,7 +78,16 @@ main =
     Handler \(BadImport srcRange file _err) ->
       do
         hPutStrLn stderr (prettySourcePosLong (sourceFrom srcRange) ++ ": Cannot read from file " ++ show file)
+        exitFailure,
+    Handler \(p :: JSP.ParseError) ->
+      do
+        hPrint stderr p
+        exitFailure,
+    Handler \(p :: UnicodeException) ->
+      do
+        hPrint stderr p
         exitFailure
+
   ]
 
 data Options = Options {

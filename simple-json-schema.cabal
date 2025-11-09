@@ -23,17 +23,20 @@ common settings
       ViewPatterns
       LambdaCase
       ScopedTypeVariables
+      UnliftedDatatypes
+      StandaloneKindSignatures
 
 executable simple-json-schema
     import:           settings
     main-is:          Main.hs
     other-modules:
       Lexer, LexerUtils, Parser, ParserUtils, AST, Resolve, Validate, PP,
-      JSON.Lexer, JSON.Parser, JSON.AST, JSON.AesonParser
+      JSON.AST, JSON.AesonParser, JSON.Lexer, JSON.Parser
     build-depends:
       base, text, array, bytestring, containers, directory, filepath,
       alex-tools, pretty, scientific, simple-get-opt,
-      GraphSCC, aeson, vector
+      GraphSCC, aeson, vector, text-builder
     hs-source-dirs:   app
     default-language: Haskell2010
     build-tool-depends: alex:alex, happy:happy
+    ghc-options: -O3

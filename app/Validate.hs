@@ -4,12 +4,13 @@ import Data.Text(Text)
 import Data.Map(Map)
 import Data.Map qualified as Map
 import AlexTools
+import JSON.Lexer qualified as JS
 import JSON.AST
 import AST
 import PP
 
 data ValidationError = ValidataionError {
-  jsonRange   :: SourceRange,
+  jsonRange   :: JS.SourceRange,
   schemaRange :: [SourceRange],
   problem     :: ValidationProblem
 }
@@ -22,7 +23,7 @@ data ValidationProblem =
 
 instance PP ValidationError where
   pp err =
-    text (prettySourceRangeLong (jsonRange err)) <.> ":" <+>
+    pp (jsonRange err) <.> ":" <+>
     pp (problem err) $$
       nest 2 ("See schema:" $$
         nest 2 (vcat [ text (prettySourceRangeLong r) | r <- schemaRange err ]))
@@ -102,7 +103,7 @@ validateType defs r ty val =
 validateFieldSpec ::
   Defs ->
   [SourceRange] ->
-  SourceRange ->
+  JS.SourceRange ->
   FieldSpec Name ->
   Map Text JSField ->
   ValidataionResult
@@ -140,7 +141,7 @@ toValue js =
     JSString s -> Just (VString s)
     _ -> Nothing
 
-validateFieldSpecAnd :: Defs -> [SourceRange] -> SourceRange -> FieldSpecAnd Name -> Map Text JSField -> ValidataionResult
+validateFieldSpecAnd :: Defs -> [SourceRange] -> JS.SourceRange -> FieldSpecAnd Name -> Map Text JSField -> ValidataionResult
 validateFieldSpecAnd defs srng jrng fspecAnd fs
   | null shapeErrs = concat (Map.elems (Map.intersectionWith checkF fspec fs))
   | otherwise = shapeErrs
